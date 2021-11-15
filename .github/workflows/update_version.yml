@@ -1,0 +1,50 @@
+name: Update Version on Docker Files
+
+env:
+  GH_TOKEN: ${{ secrets.GH_TOKEN }}
+  POSTGRES_VERSION: ${{ github.event.inputs.postgres_version }}
+on:
+  workflow_dispatch:
+    inputs:
+      project_version:
+        description: "Version number to be released e.g 10.0.3"
+      postgres_version:
+        required: false
+        description: "Postgres version number. If it is empty, postgres version will not be changed"
+      microsoft_email:
+        description: "Email to be written on changelogs"
+        default: "gindibay@microsoft.com"
+      name:
+        description: "Name to be written on changelogs"
+        default: "Gurkan Indibay"
+
+jobs:
+  update_docker_files:
+    name: "Update docker files"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install package dependencies
+        run: sudo apt-get update && sudo apt install libcurl4-openssl-dev libssl-dev python3-testresources
+
+      - name: Clone tools branch
+        run: git clone -b v0.8.8 --depth=1 https://github.com/citusdata/tools.git tools
+
+      - name: Set git name and email
+        run: |
+          git config --global user.email "${{ github.event.inputs.microsoft_email }}" && \
+          git config --global user.name "${{ github.event.inputs.name }}"
+
+      - name: Install python requirements
+        run: export PYTHONPATH="$(pwd)/tools" && python -m pip install -r tools/packaging_automation/requirements.txt
+
+      - name: Update docker files
+        run: |
+          python -m tools.packaging_automation.update_docker \
+          --prj_ver ${{ github.event.inputs.project_version }} \
+          --gh_token "${GH_TOKEN}" \
+          --pipeline \
+          --exec_path "$(pwd)" \
+          --postgres_version "${POSTGRES_VERSION}"
