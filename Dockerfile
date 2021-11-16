@@ -12,28 +12,25 @@ LABEL maintainer="Citus Data https://citusdata.com" \
       org.label-schema.schema-version="1.0"
 
 ENV CITUS_VERSION ${VERSION}.citus-1
-
 # install Citus
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
        ca-certificates \
        curl \
-       postgresql-server-dev-14 make gcc wget libicu-dev \
+       postgresql-server-dev-$PG_MAJOR make gcc wget libicu-dev \
     && curl -s https://install.citusdata.com/community/deb.sh | bash \
     && apt-get install -y postgresql-$PG_MAJOR-citus-10.2=$CITUS_VERSION \
                           postgresql-$PG_MAJOR-hll=2.16.citus-1 \
                           postgresql-$PG_MAJOR-topn=2.4.0 \
     && apt-get purge -y --auto-remove curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && wget https://ja.osdn.net/dl/pgbigm/pg_bigm-1.2-20200228.tar.gz \
+    && tar zxf pg_bigm-1.2-20200228.tar.gz \
+    && cd pg_bigm-1.2-20200228 && make USE_PGXS=1 && make USE_PGXS=1 install
 
-# add citus to default PostgreSQL config
+# add citus/pg_bigm to default PostgreSQL config
+RUN echo "shared_preload_libraries='pg_bigm'" >> /usr/share/postgresql/postgresql.conf.sample
 RUN echo "shared_preload_libraries='citus'" >> /usr/share/postgresql/postgresql.conf.sample
-
-RUN wget https://ja.osdn.net/dl/pgbigm/pg_bigm-1.2-20200228.tar.gz
-RUN tar zxf pg_bigm-1.2-20200228.tar.gz
-RUN cd pg_bigm-1.2-20200228 && make USE_PGXS=1 && make USE_PGXS=1 install
-
-RUN echo shared_preload_libraries='pg_bigm' >> /var/lib/postgresql/data/postgresql.conf
 
 # add scripts to run after initdb
 COPY 001-create-citus-extension.sql /docker-entrypoint-initdb.d/
